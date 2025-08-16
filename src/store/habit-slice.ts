@@ -78,147 +78,143 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
-
 export interface Habit {
-  id: string;
-  name: string;
-  frequency: "daily" | "weekly";
-  completedDates: string[];
-  createdAt: string;
+  id: string;
+  name: string;
+  frequency: "daily" | "weekly";
+  completedDates: string[];
+  createdAt: string;
 }
 
 interface HabitState {
-  habits: Habit[];
-  loading: boolean;
-  error: string | null;
+  habits: Habit[];
+  loading: boolean;
+  error: string | null;
 }
 
 const initialState: HabitState = {
-  habits: [],
-  loading: false,
-  error: null
+  habits: [],
+  loading: false,
+  error: null
 };
 
 
-//Now add Habit
-//Now in order to fetch the updated Habits
+// Now in order to fetch the updated Habits
 export const getHabits = createAsyncThunk(
-    "Habit/getHabit",
-    async()=>{
-        const rsa = axios.get("https://habit-tracker-p9t3.onrender.com/api/habits/get");
-        return (await rsa).data;
-    }
+    "Habit/getHabit",
+    async()=>{
+        const rsa = axios.get("https://habit-tracker-p9t3.onrender.com/api/habits/get");
+        return (await rsa).data;
+    }
 )
+
+// Corrected addHabits function using Axios
 export const addHabits = createAsyncThunk(
-    "Habit/addHabit",
-    async(habit:{name:string,frequency:"daily"|"weekly"})=>{
-        const newHabit = {
-            ...habit,
-            id:Date.now().toString(),
-            completedDates:[],
-            createdAt: new Date().toISOString()
-        }
+    "Habit/addHabit",
+    async(habit:{name:string,frequency:"daily"|"weekly"})=>{
+        const newHabit = {
+            ...habit,
+            id:Date.now().toString(),
+            completedDates:[],
+            createdAt: new Date().toISOString()
+        }
 
-        const res = await fetch("https://habit-tracker-p9t3.onrender.com/api/habits",
-            {
-                method:"POST",
-                headers: { "Content-Type": "application/json" },
-                body:JSON.stringify(newHabit)
-            }
-        )
+        // Using axios.post instead of fetch.
+        // Axios automatically sets the Content-Type header and handles JSON serialization.
+        const res = await axios.post("https://habit-tracker-p9t3.onrender.com/api/habits", newHabit);
 
-        return (await res.json()) as Habit;
-    }
+        return res.data as Habit;
+    }
 )
 
 export const toggleHabit = createAsyncThunk(
-  "Habit/toggleHabit",
-  async ({ id, date }: { id: string; date: string }) => {
-    const res = await fetch(`https://habit-tracker-p9t3.onrender.com/api/habits/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date })
-    });
-    return (await res.json()) as Habit;
-  }
+  "Habit/toggleHabit",
+  async ({ id, date }: { id: string; date: string }) => {
+    const res = await fetch(`https://habit-tracker-p9t3.onrender.com/api/habits/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date })
+    });
+    return (await res.json()) as Habit;
+  }
 );
 
 export const removeHabit = createAsyncThunk(
-  "Habit/removeHabit",
-  async ({ id }: { id: string }) => {
-    await fetch(`https://habit-tracker-p9t3.onrender.com/api/habits/${id}`, { method: "DELETE" });
-    return id;
-  }
+  "Habit/removeHabit",
+  async ({ id }: { id: string }) => {
+    await fetch(`https://habit-tracker-p9t3.onrender.com/api/habits/${id}`, { method: "DELETE" });
+    return id;
+  }
 );
 
 // Slice
 const habitSlice = createSlice({
-  name: "Habits",
-  initialState,
-  reducers: {},
-  extraReducers: (builder) => {
-    // getHabits
-    builder
-      .addCase(getHabits.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(getHabits.fulfilled, (state, action) => {
-        state.loading = false;
-        state.habits = action.payload;
-      })
-      .addCase(getHabits.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message || "Failed to fetch habits";
-      })
+  name: "Habits",
+  initialState,
+  reducers: {},
+  extraReducers: (builder) => {
+    // getHabits
+    builder
+      .addCase(getHabits.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getHabits.fulfilled, (state, action) => {
+        state.loading = false;
+        state.habits = action.payload;
+      })
+      .addCase(getHabits.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to fetch habits";
+      })
 
-      // addHabit
-      .addCase(addHabits.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(addHabits.fulfilled, (state, action) => {
-        state.loading = false;
-        state.habits.push(action.payload);
-      })
-      .addCase(addHabits.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message || "Failed to add habit";
-      })
+      // addHabit
+      .addCase(addHabits.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(addHabits.fulfilled, (state, action) => {
+        state.loading = false;
+        state.habits.push(action.payload);
+      })
+      .addCase(addHabits.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to add habit";
+      })
 
-      // toggleHabit
-      .addCase(toggleHabit.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(toggleHabit.fulfilled, (state, action) => {
-        state.loading = false;
-        const index = state.habits.findIndex(
-          (h) => h.id === action.payload.id
-        );
-        if (index > -1) {
-          state.habits[index] = action.payload;
-        }
-      })
-      .addCase(toggleHabit.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message || "Failed to toggle habit";
-      })
+      // toggleHabit
+      .addCase(toggleHabit.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(toggleHabit.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.habits.findIndex(
+          (h) => h.id === action.payload.id
+        );
+        if (index > -1) {
+          state.habits[index] = action.payload;
+        }
+      })
+      .addCase(toggleHabit.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to toggle habit";
+      })
 
-      // removeHabit
-      .addCase(removeHabit.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(removeHabit.fulfilled, (state, action) => {
-        state.loading = false;
-        state.habits = state.habits.filter((h) => h.id !== action.payload);
-      })
-      .addCase(removeHabit.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message || "Failed to remove habit";
-      });
-  }
+      // removeHabit
+      .addCase(removeHabit.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(removeHabit.fulfilled, (state, action) => {
+        state.loading = false;
+        state.habits = state.habits.filter((h) => h.id !== action.payload);
+      })
+      .addCase(removeHabit.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to remove habit";
+      });
+  }
 });
 
 export default habitSlice.reducer;
