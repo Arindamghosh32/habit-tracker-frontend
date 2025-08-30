@@ -75,7 +75,7 @@
 
 //Now this part is updated as we are going to connect the backend
 
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit";
 import axios from "axios";
 
 export interface Habit {
@@ -126,7 +126,7 @@ export const addHabits = createAsyncThunk(
         return res.data as Habit;
     }
 )
-
+//Here i am toggling the habit
 export const toggleHabit = createAsyncThunk(
   "Habit/toggleHabit",
   async ({ id, date }: { id: string; date: string }) => {
@@ -135,8 +135,29 @@ export const toggleHabit = createAsyncThunk(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date })
     });
-    return (await res.json()) as Habit;
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok)
+    {
+        throw new Error(data?.message || "Failed to toggle habit");
+    }
+    return data as Habit;
   }
+);
+
+//Here i am reseting the habit
+export const resetHabit = createAsyncThunk(
+        "Habit/resetHabit",
+        async({id}:{id:String})=>{
+            const res = await fetch(`https://habit-tracker-p9t3.onrender.com/api/habits/${id}/reset`,{
+                method:"POST"
+            });
+            const data = await res.json().catch(()=>({}));
+            if(!res.ok)
+            {
+                throw new Error(data?.message || "Failed to reset Habit");
+            }
+            return data as Habit;
+        }
 );
 
 export const removeHabit = createAsyncThunk(
@@ -213,7 +234,14 @@ const habitSlice = createSlice({
       .addCase(removeHabit.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || "Failed to remove habit";
-      });
+      })
+
+
+      //resetHabit 
+      .addCase(resetHabit.fulfilled,(state,action)=>{
+        const idx = state.habits.findIndex((h) => h.id === action.payload.id);
+        if(idx > -1) state.habits[idx] = action.payload;
+      })
   }
 });
 
