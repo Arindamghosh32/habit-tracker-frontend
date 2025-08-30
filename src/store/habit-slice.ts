@@ -75,7 +75,7 @@
 
 //Now this part is updated as we are going to connect the backend
 
-import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
 export interface Habit {
