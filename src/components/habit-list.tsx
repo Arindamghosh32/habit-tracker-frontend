@@ -5,12 +5,19 @@ import { Box, Button, LinearProgress, Paper, Typography } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { toggleHabit, removeHabit, getHabits, resetHabit, type Habit } from '../store/habit-slice';
+import {
+  toggleHabit,
+  removeHabit,
+  getHabits,
+  resetHabit,
+  type Habit,
+} from '../store/habit-slice';
 
 const HabitList = () => {
   const habitList = useSelector((state: RootState) => state.habits.habits);
   const dispatch = useDispatch<AppDispatch>();
   const [now, setNow] = useState(new Date());
+  const [localCompleted, setLocalCompleted] = useState<{ [id: string]: string[] }>({});
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
@@ -24,18 +31,18 @@ const HabitList = () => {
   const fullPeriodMs = (habit: Habit) =>
     habit.frequency === 'daily' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
 
-  // ✅ Timer always based on creation time, not completions
   const getNextAvailable = (habit: Habit) => {
     const period = fullPeriodMs(habit);
-    const created = new Date(habit.createdAt).getTime();
-    const elapsed = now.getTime() - created;
+    const createdTime = new Date(habit.createdAt).getTime();
+    const elapsed = now.getTime() - createdTime;
     const cyclesPassed = Math.floor(elapsed / period);
-    return new Date(created + (cyclesPassed + 1) * period);
+    return new Date(createdTime + (cyclesPassed + 1) * period);
   };
 
   const getRemainingTime = (habit: Habit) => {
     const next = getNextAvailable(habit);
     const diffMs = next.getTime() - now.getTime();
+
     if (diffMs <= 0) return 'Ready!';
 
     const totalSeconds = Math.floor(diffMs / 1000);
@@ -56,22 +63,26 @@ const HabitList = () => {
     }
   };
 
-  // ✅ Allow marking complete once per interval, timer unaffected
   const canMarkComplete = (habit: Habit) => {
     const period = fullPeriodMs(habit);
-    const created = new Date(habit.createdAt).getTime();
-    const elapsed = now.getTime() - created;
+    const createdTime = new Date(habit.createdAt).getTime();
+    const elapsed = now.getTime() - createdTime;
     const cyclesPassed = Math.floor(elapsed / period);
 
-    const intervalStart = created + cyclesPassed * period;
+    const intervalStart = createdTime + cyclesPassed * period;
     const intervalEnd = intervalStart + period;
 
-    const alreadyMarkedThisInterval = habit.completedDates.some((d) => {
+    const completedDates = [
+      ...(habit.completedDates || []),
+      ...(localCompleted[habit.id] || []),
+    ];
+
+    const alreadyMarkedThisInterval = completedDates.some((d) => {
       const t = new Date(d).getTime();
       return t >= intervalStart && t < intervalEnd;
     });
 
-    return now.getTime() >= intervalStart && now.getTime() < intervalEnd && !alreadyMarkedThisInterval;
+    return !alreadyMarkedThisInterval && now.getTime() >= intervalStart && now.getTime() < intervalEnd;
   };
 
   const isBroken = (habit: Habit) => {
@@ -83,23 +94,48 @@ const HabitList = () => {
     return false;
   };
 
-  const getStreak = (habit: Habit) => {
-    if (!habit.completedDates.length) return 0;
-    const sorted = [...habit.completedDates].sort();
-    let streak = 1;
-    let cursor = new Date(sorted[0]);
-    for (let i = 1; i < sorted.length; i++) {
-      const cur = new Date(sorted[i]);
-      const diffDays = (cur.getTime() - cursor.getTime()) / (24 * 60 * 60 * 1000);
-      if (
-        (habit.frequency === 'daily' && diffDays <= 2) ||
-        (habit.frequency === 'weekly' && diffDays <= 8)
-      ) {
-        streak++;
-        cursor = cur;
-      } else break;
-    }
-    return streak;
+const getStreak = (habit: Habit) => {
+  const allDates = [...(habit.completedDates || []), ...(localCompleted[habit.id] || [])];
+  if (!allDates.length) return 0;
+
+  // Sort latest first
+  const sorted = allDates
+    .map(d => new Date(d))
+    .sort((a, b) => b.getTime() - a.getTime());
+
+  let streak = 0;
+  let cursor = sorted[0];
+
+  streak = 1; // latest completion counts
+
+  for (let i = 1; i < sorted.length; i++) {
+    const cur = sorted[i];
+    const diffDays = (cursor.getTime() - cur.getTime()) / (24 * 60 * 60 * 1000);
+
+    if ((habit.frequency === 'daily' && diffDays === 1) || 
+        (habit.frequency === 'weekly' && diffDays === 7)) {
+      streak++;
+      cursor = cur;
+    } else break; // any gap breaks the streak
+  }
+
+  return streak;
+};
+
+
+
+  const handleMarkComplete = (habit: Habit) => {
+    const dateISO = new Date().toISOString();
+
+    // Optimistic UI update
+    setLocalCompleted((prev) => ({
+      ...prev,
+      [habit.id]: [...(prev[habit.id] || []), dateISO],
+    }));
+
+    dispatch(toggleHabit({ id: habit.id, date: dateISO })).catch((err) => {
+      console.error('Failed to mark habit complete:', err);
+    });
   };
 
   return (
@@ -137,9 +173,7 @@ const HabitList = () => {
                   color={ready ? 'success' : 'primary'}
                   startIcon={<CheckCircleIcon />}
                   disabled={!ready || broken}
-                  onClick={() =>
-                    dispatch(toggleHabit({ id: habit.id, date: new Date().toISOString() }))
-                  }
+                  onClick={() => handleMarkComplete(habit)}
                 >
                   {broken ? 'Streak Broken' : ready ? 'Mark Complete' : 'Wait'}
                 </Button>
@@ -171,10 +205,7 @@ const HabitList = () => {
             </Box>
 
             <Box sx={{ mt: 2 }}>
-              <Typography
-                variant="body2"
-                sx={{ color: broken ? 'error.main' : 'text.primary' }}
-              >
+              <Typography variant="body2" sx={{ color: broken ? 'error.main' : 'text.primary' }}>
                 Current Streak: {streak} {habit.frequency === 'daily' ? 'Days' : 'Weeks'}
               </Typography>
               <LinearProgress
@@ -189,9 +220,7 @@ const HabitList = () => {
                   borderRadius: 4,
                   mt: 1,
                   backgroundColor: broken ? 'error.lighter' : undefined,
-                  '& .MuiLinearProgress-bar': {
-                    backgroundColor: broken ? 'error.main' : undefined,
-                  },
+                  '& .MuiLinearProgress-bar': { backgroundColor: broken ? 'error.main' : undefined },
                 }}
               />
             </Box>
