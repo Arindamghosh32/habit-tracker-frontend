@@ -63,27 +63,37 @@ const HabitList = () => {
     }
   };
 
-  const canMarkComplete = (habit: Habit) => {
-    const period = fullPeriodMs(habit);
-    const createdTime = new Date(habit.createdAt).getTime();
-    const elapsed = now.getTime() - createdTime;
-    const cyclesPassed = Math.floor(elapsed / period);
+const canMarkComplete = (habit: Habit) => {
+  const today = new Date().toISOString().split("T")[0];
 
-    const intervalStart = createdTime + cyclesPassed * period;
-    const intervalEnd = intervalStart + period;
+  // 1️⃣ Already completed today according to backend or local optimistic state
+  if ((habit.completedDates || []).includes(today) || (localCompleted[habit.id] || []).includes(today)) {
+    return false;
+  }
 
-    const completedDates = [
-      ...(habit.completedDates || []),
-      ...(localCompleted[habit.id] || []),
-    ];
+  // 2️⃣ Keep interval logic for daily/weekly habits
+  const period = fullPeriodMs(habit);
+  const createdTime = new Date(habit.createdAt).getTime();
+  const elapsed = now.getTime() - createdTime;
+  const cyclesPassed = Math.floor(elapsed / period);
 
-    const alreadyMarkedThisInterval = completedDates.some((d) => {
-      const t = new Date(d).getTime();
-      return t >= intervalStart && t < intervalEnd;
-    });
+  const intervalStart = createdTime + cyclesPassed * period;
+  const intervalEnd = intervalStart + period;
 
-    return !alreadyMarkedThisInterval && now.getTime() >= intervalStart && now.getTime() < intervalEnd;
-  };
+  const completedDates = [
+    ...(habit.completedDates || []),
+    ...(localCompleted[habit.id] || []),
+  ];
+
+  const alreadyMarkedThisInterval = completedDates.some((d) => {
+    const t = new Date(d).getTime();
+    return t >= intervalStart && t < intervalEnd;
+  });
+
+  // 3️⃣ Combine both conditions
+  return !alreadyMarkedThisInterval && now.getTime() >= intervalStart && now.getTime() < intervalEnd;
+};
+
 
   const isBroken = (habit: Habit) => {
     if (!habit.completedDates.length) return false;
