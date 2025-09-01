@@ -24,20 +24,18 @@ const HabitList = () => {
   const fullPeriodMs = (habit: Habit) =>
     habit.frequency === 'daily' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
 
-  // Next available completion slot
+  // ✅ Timer always based on creation time, not completions
   const getNextAvailable = (habit: Habit) => {
-    const last = habit.completedDates.length
-      ? new Date(habit.completedDates[habit.completedDates.length - 1])
-      : new Date(habit.createdAt);
-
-    return new Date(last.getTime() + fullPeriodMs(habit));
+    const period = fullPeriodMs(habit);
+    const created = new Date(habit.createdAt).getTime();
+    const elapsed = now.getTime() - created;
+    const cyclesPassed = Math.floor(elapsed / period);
+    return new Date(created + (cyclesPassed + 1) * period);
   };
 
-  // Remaining time for countdown
   const getRemainingTime = (habit: Habit) => {
     const next = getNextAvailable(habit);
     const diffMs = next.getTime() - now.getTime();
-
     if (diffMs <= 0) return 'Ready!';
 
     const totalSeconds = Math.floor(diffMs / 1000);
@@ -58,27 +56,24 @@ const HabitList = () => {
     }
   };
 
-  // ✅ FIX: allow marking complete in the current interval
+  // ✅ Allow marking complete once per interval, timer unaffected
   const canMarkComplete = (habit: Habit) => {
     const period = fullPeriodMs(habit);
+    const created = new Date(habit.createdAt).getTime();
+    const elapsed = now.getTime() - created;
+    const cyclesPassed = Math.floor(elapsed / period);
 
-    const lastCompletion = habit.completedDates.length
-      ? new Date(habit.completedDates[habit.completedDates.length - 1])
-      : null;
-
-    const intervalStart = lastCompletion
-      ? lastCompletion.getTime()
-      : new Date(habit.createdAt).getTime();
+    const intervalStart = created + cyclesPassed * period;
     const intervalEnd = intervalStart + period;
 
-    // if inside this interval and not yet marked → allow
-    const alreadyMarkedThisInterval =
-      lastCompletion && lastCompletion.getTime() >= intervalStart;
+    const alreadyMarkedThisInterval = habit.completedDates.some((d) => {
+      const t = new Date(d).getTime();
+      return t >= intervalStart && t < intervalEnd;
+    });
 
-    return now.getTime() < intervalEnd && !alreadyMarkedThisInterval;
+    return now.getTime() >= intervalStart && now.getTime() < intervalEnd && !alreadyMarkedThisInterval;
   };
 
-  // Detect broken streak
   const isBroken = (habit: Habit) => {
     if (!habit.completedDates.length) return false;
     const last = new Date(habit.completedDates[habit.completedDates.length - 1]);
@@ -88,7 +83,6 @@ const HabitList = () => {
     return false;
   };
 
-  // Calculate streak
   const getStreak = (habit: Habit) => {
     if (!habit.completedDates.length) return 0;
     const sorted = [...habit.completedDates].sort();
