@@ -206,7 +206,7 @@ const getStreak = (habit: Habit) => {
 
             <Box sx={{ mt: 2 }}>
               <Typography variant="body2" sx={{ color: broken ? 'error.main' : 'text.primary' }}>
-                Current Streak: {streak} {habit.frequency === 'daily' ? 'Days' : 'Weeks'}
+                Current Streak: {streak} {habit.frequency === 'daily' ? 'Days' : 'WeekDay'}
               </Typography>
               <LinearProgress
                 variant="determinate"
